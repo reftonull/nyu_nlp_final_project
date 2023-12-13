@@ -4,7 +4,6 @@ from collections import defaultdict, Counter
 import sys
 import re
 
-
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == "convert":
         convert_to_sb_format(sys.argv[2], sys.argv[3])
@@ -223,6 +222,7 @@ def virtebi(lines, poset, start_prob, likelihood_probs, trans_probs):
     lines_copy = []
 
     tags = list(poset)
+    print(tags)
 
     # for line in lines:
     #     word = line.strip()
@@ -241,49 +241,99 @@ def virtebi(lines, poset, start_prob, likelihood_probs, trans_probs):
         else:
             sentence.append(word)
 
-    # print(text[slice(0,10)])
-
-    for sentence in text:  # for sentence in txt
-        lines_copy.append(sentence[0]);
-        if not sentence:
-            continue
-
-        # Create 2D array with dimension (len(row), len(columns) )
-        virtebi_arr = [[0 for col in range(len(sentence))] for row in range(len(tags))]
-        look_up = [[0 for col in range(len(sentence))] for row in range(len(tags))]
-
-        # Initialization step
+    for sentence in text:
+        viterbi_arr = [[0 for col in range(2 * len(sentence))] for row in range(len(tags))]
+        look_up = [[(0, 0) for col in range(2 * len(sentence))] for row in range(len(tags))]
+        
         for tag in tags:
-            ind = tags.index(tag)
-            virtebi_arr[ind][0] = float(start_prob.get(tag, 1e-10)) * likelihood_probs[tag].get(sentence[0], 1e-10)
+            tag_index = tags.index(tag)
+            viterbi_arr[tag_index][0] = float(start_prob.get(tag, 1e-10)) * likelihood_probs[tag].get(sentence[0], 1e-10)
 
-        # Recursion to find max
-        for n in range(1, len(sentence)):
+        n = 1
+        max_prob = 0
+        max_state = 0
+        max_col = 0
+        while n < 2 * len(sentence):
             for state in range(len(tags)):
-                max_prob = 0
-                max_state = 0
+                if n % 2 == 0:
+                    max_prob = 0
+                    max_state = 0
                 for prev_state in range(1, len(tags)):
-                    prob = virtebi_arr[prev_state][n-1] * trans_probs[tags[prev_state]].get(tags[state], 1e-10) * likelihood_probs[tags[state]].get(sentence[n], 1e-10)
+                    if n % 2 == 1 and tags[state] == "<SB>":
+                        prob = viterbi_arr[prev_state][n-1] * trans_probs[tags[prev_state]].get(tags[state], 1e-10)
+                    else:
+                        prob = viterbi_arr[prev_state][n-2] * trans_probs[tags[prev_state]].get(tags[state], 1e-10) * likelihood_probs[tags[state]].get(sentence[int(n/2)], 1e-10)
+
                     if prob > max_prob:
                         max_prob = prob
                         max_state = prev_state
-                virtebi_arr[state][n] = max_prob
-                look_up[state][n] = max_state
+                        max_col = n
 
-            lines_copy.append(sentence[n]);
+                viterbi_arr[state][n] = max_prob
+                look_up[state][n] = (max_state, max_col % 2)
+            n += 1
 
-        # Backtrack to find best path
         path = []
-        current_state = max(range(len(tags)), key=lambda st: virtebi_arr[st][-1])
-        for t in range(len(sentence) - 1, -1, -1):
+        sentence_copy = []
+        current_state = max(range(len(tags)), key=lambda st: viterbi_arr[st][-1])
+        t = 2 * len(sentence) - 1
+        while t >= 0:
             path.append(tags[current_state])
-            current_state = look_up[current_state][t]
+            if t % 2 == 0:
+                sentence_copy.append(sentence[int(t/2)])
+            else:
+                sentence_copy.append("<SB>\n")
+            current_state, col = look_up[current_state][t]
+            if col == 0:
+                t -= 2
+            else:
+                t -= 1
         path.reverse()
+        sentence_copy.reverse()
 
         sentence_pos.extend(path)
+        lines_copy.extend(sentence_copy)
 
 
-    print(lines_copy[slice(0, 50)])
+    # for sentence in text:  # for sentence in txt
+    #     lines_copy.append(sentence[0]);
+    #     if not sentence:
+    #         continue
+    #
+    #     # Create 2D array with dimension (len(row), len(columns) )
+    #     virtebi_arr = [[0 for col in range(len(sentence))] for row in range(len(tags))]
+    #     look_up = [[0 for col in range(len(sentence))] for row in range(len(tags))]
+    #
+    #     # Initialization step
+    #     for tag in tags:
+    #         ind = tags.index(tag)
+    #         virtebi_arr[ind][0] = float(start_prob.get(tag, 1e-10)) * likelihood_probs[tag].get(sentence[0], 1e-10)
+    #
+    #     # Recursion to find max
+    #     for n in range(1, len(sentence)):
+    #         for state in range(len(tags)):
+    #             max_prob = 0
+    #             max_state = 0
+    #             for prev_state in range(1, len(tags)):
+    #                 prob = virtebi_arr[prev_state][n-1] * trans_probs[tags[prev_state]].get(tags[state], 1e-10) * likelihood_probs[tags[state]].get(sentence[n], 1e-10)
+    #                 if prob > max_prob:
+    #                     max_prob = prob
+    #                     max_state = prev_state
+    #             virtebi_arr[state][n] = max_prob
+    #             look_up[state][n] = max_state
+    #
+    #         lines_copy.append(sentence[n]);
+    #
+    #     # Backtrack to find best path
+    #     path = []
+    #     current_state = max(range(len(tags)), key=lambda st: virtebi_arr[st][-1])
+    #     for t in range(len(sentence) - 1, -1, -1):
+    #         path.append(tags[current_state])
+    #         current_state = look_up[current_state][t]
+    #     path.reverse()
+    #
+    #     sentence_pos.extend(path)
+
 
     return lines_copy, sentence_pos
 
