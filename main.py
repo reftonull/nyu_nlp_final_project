@@ -9,6 +9,10 @@ def main():
         convert_to_sb_format(sys.argv[2], sys.argv[3])
         return
 
+    if len(sys.argv) > 1 and sys.argv[1] == "test":
+        calculate_stats(sys.argv[2], sys.argv[3])
+        return
+
     training_set = "WSJ_02-21.sb.pos"
     development_set = "WSJ_24.sb.pos"
     training_data = merge_files(training_set, development_set, "train_data")
@@ -41,6 +45,44 @@ def main():
 
     save_to_pos_file(result, "submission.pos")
 
+
+# Calculates precision, recall, and F1 score
+def calculate_stats(test_file_name, output_file_name):
+    with open(test_file_name, 'r') as f:
+        test_lines = f.readlines()
+    with open(output_file_name, 'r') as f:
+        output_lines = f.readlines()
+
+    test_lines = [line.strip() for line in test_lines]
+    output_lines = [line.strip() for line in output_lines]
+
+    test_sb_count = len([line for line in test_lines if line == "<SB> <SB>"])
+    output_sb_count = len([line for line in output_lines if line == "<SB>\t<SB>"])
+
+    precision_miss_count = 0
+    recall_miss_count = 0
+
+    n = min(len(test_lines), len(output_lines))
+    test_i = 0
+    output_i = 0
+    while test_i < n and output_i < n:
+        if test_lines[test_i] == "<SB> <SB>" and output_lines[output_i] != "<SB>\t<SB>":
+            precision_miss_count += 1
+            test_i += 1 
+        elif output_lines[output_i] == "<SB>\t<SB>" and test_lines[test_i] != "<SB> <SB>":
+            recall_miss_count += 1
+            output_i += 1
+        else:
+            test_i += 1
+            output_i += 1
+
+    precision = (test_sb_count - precision_miss_count) / test_sb_count
+    recall = (output_sb_count - recall_miss_count) / output_sb_count
+    f1_score = 2 * precision * recall / (precision + recall)
+
+    print(f"Precision: {precision}")
+    print(f"Recall: {recall}")
+    print(f"F1 Score: {f1_score}")
 
 def convert_to_sb_format(file_name, output_file_name):
     if len(sys.argv) == 5:
@@ -234,7 +276,7 @@ def virtebi(lines, poset, start_prob, likelihood_probs, trans_probs):
 
     for i in range(len(lines)):
         word = lines[i].strip()
-        if i % 20 == 0:
+        if i % 15 == 0:
             sentence.append(word)
             text.append(sentence)
             sentence = []
@@ -261,6 +303,8 @@ def virtebi(lines, poset, start_prob, likelihood_probs, trans_probs):
                 for prev_state in range(1, len(tags)):
                     if n % 2 == 1 and tags[state] == "<SB>":
                         prob = viterbi_arr[prev_state][n-1] * trans_probs[tags[prev_state]].get(tags[state], 1e-10)
+                    elif n % 2 == 1 and tags[state] != "<SB>":
+                        prob = 0
                     else:
                         prob = viterbi_arr[prev_state][n-2] * trans_probs[tags[prev_state]].get(tags[state], 1e-10) * likelihood_probs[tags[state]].get(sentence[int(n/2)], 1e-10)
 
