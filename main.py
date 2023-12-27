@@ -13,10 +13,10 @@ def main():
         calculate_stats(sys.argv[2], sys.argv[3])
         return
 
-    training_set = "WSJ_02-21.sb.pos"
+    training_set = "ShakespeareSonnetCorpusTrain.pos"
     development_set = "WSJ_24.sb.pos"
     training_data = merge_files(training_set, development_set, "train_data")
-    tagging_data = "WSJ_24.sb.words"
+    tagging_data = "ShakespeareSonnetCorpusTest.words"
 
     lines = open_file(training_data)
     test = open_file(tagging_data)
